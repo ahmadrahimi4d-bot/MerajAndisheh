@@ -1,0 +1,1844 @@
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Database,
+  Download,
+  ExternalLink,
+  FileText,
+  Globe,
+  Languages,
+  Layers,
+  LogIn,
+  Play,
+  RefreshCw,
+  Rocket,
+  RotateCcw,
+  ShieldCheck,
+  Trash2,
+  UserPlus,
+  Users,
+  XCircle,
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import type { HealthStatus } from '../../core/domain/HealthStatus';
+import type { LogEntry, LogLevel } from '../../core/domain/LogEntry';
+import type { TestSuiteResult } from '../../core/domain/TestResult';
+import {
+  auditDocumentExternalCdnUrls,
+  validateCspPolicy,
+  validateRobotsTxtContent,
+} from '../../core/services/securityAuditService';
+import { envConfig } from '../../infrastructure/config/envConfig';
+import { seedDevAllFormatsSamplesAsync } from '../../infrastructure/data/devStage13Samples';
+import type { SeedSummary } from '../../infrastructure/data/seed';
+import { ensureStage18LayoutSeededAsync } from '../../infrastructure/data/stage18LayoutSeed';
+import { stage1Tests } from '../../tests/stage1.tests';
+import { stage2Tests } from '../../tests/stage2.tests';
+import { stage3Tests } from '../../tests/stage3.tests';
+import { stage4Tests } from '../../tests/stage4.tests';
+import { stage5Tests } from '../../tests/stage5.tests';
+import { stage6Tests } from '../../tests/stage6.tests';
+import { stage7Tests } from '../../tests/stage7.tests';
+import { stage8Tests } from '../../tests/stage8.tests';
+import { stage9Tests } from '../../tests/stage9.tests';
+import { stage10Tests } from '../../tests/stage10.tests';
+import { stage11Tests } from '../../tests/stage11.tests';
+import { stage12Tests } from '../../tests/stage12.tests';
+import { stage13Tests } from '../../tests/stage13.tests';
+import { stage14Tests } from '../../tests/stage14.tests';
+import { stage15Tests } from '../../tests/stage15.tests';
+import { stage16Tests } from '../../tests/stage16.tests';
+import { stage17Tests } from '../../tests/stage17.tests';
+import { stage18Tests } from '../../tests/stage18.tests';
+import { stage19Tests } from '../../tests/stage19.tests';
+import { stage20Tests } from '../../tests/stage20.tests';
+import { stage21Tests } from '../../tests/stage21.tests';
+import { stage22Tests } from '../../tests/stage22.tests';
+import { stage23Tests } from '../../tests/stage23.tests';
+import { stage24Tests } from '../../tests/stage24.tests';
+import { stage25Tests } from '../../tests/stage25.tests';
+import { stage26Tests } from '../../tests/stage26.tests';
+import { stage27Tests } from '../../tests/stage27.tests';
+import { stage28Tests } from '../../tests/stage28.tests';
+import { stage29Tests } from '../../tests/stage29.tests';
+import { stage30Tests } from '../../tests/stage30.tests';
+import { stage31Tests } from '../../tests/stage31.tests';
+import { runUnitTests } from '../../tests/testRunner';
+import { useAuth } from '../auth/AuthContext';
+import { useAge } from '../context/AgeContext';
+import { useLocale } from '../context/LocaleContext';
+import { Alert, Button } from '../components/ui';
+import { MainLayout } from '../layouts/MainLayout';
+import { formatNumber } from '../resources/formatters';
+import type { ResourceKey } from '../resources/fa';
+import { t } from '../resources/i18n';
+import { navigateToHash } from '../router/HashRouter';
+import {
+  appContainer,
+  ensureStage16CommentsDefaultFlagAsync,
+  ensureStage17ContentRequestsDefaultFlagAsync,
+  ensureStage23FilmsDefaultFlagAsync,
+  ensureStage24BooksDefaultFlagAsync,
+  ensureStage25StoryGeneratorDefaultFlagAsync,
+  ensureStage26NewsTickerDefaultFlagAsync,
+  ensureStage29GamesDefaultFlagAsync,
+  ensureStage31ExclusiveGameSeededAsync,
+} from '../services/appContainer';
+
+interface HealthPageProps {
+  currentRoute: string;
+}
+
+const ALL_UNIT_TESTS = [
+  ...stage1Tests,
+  ...stage2Tests,
+  ...stage3Tests,
+  ...stage4Tests,
+  ...stage5Tests,
+  ...stage6Tests,
+  ...stage7Tests,
+  ...stage8Tests,
+  ...stage9Tests,
+  ...stage10Tests,
+  ...stage11Tests,
+  ...stage12Tests,
+  ...stage13Tests,
+  ...stage14Tests,
+  ...stage15Tests,
+  ...stage16Tests,
+  ...stage17Tests,
+  ...stage18Tests,
+  ...stage19Tests,
+  ...stage20Tests,
+  ...stage21Tests,
+  ...stage22Tests,
+  ...stage23Tests,
+  ...stage24Tests,
+  ...stage25Tests,
+  ...stage26Tests,
+  ...stage27Tests,
+  ...stage28Tests,
+  ...stage29Tests,
+  ...stage30Tests,
+  ...stage31Tests,
+];
+
+const ARCHITECTURE_LAYERS: ReadonlyArray<{
+  id: string;
+  titleKey: ResourceKey;
+  descKey: ResourceKey;
+  folder: string;
+}> = [
+  {
+    id: 'core',
+    titleKey: 'health.card.architecture.core.title',
+    descKey: 'health.card.architecture.core.desc',
+    folder: 'src/core/',
+  },
+  {
+    id: 'infrastructure',
+    titleKey: 'health.card.architecture.infrastructure.title',
+    descKey: 'health.card.architecture.infrastructure.desc',
+    folder: 'src/infrastructure/',
+  },
+  {
+    id: 'web',
+    titleKey: 'health.card.architecture.web.title',
+    descKey: 'health.card.architecture.web.desc',
+    folder: 'src/web/',
+  },
+  {
+    id: 'tests',
+    titleKey: 'health.card.architecture.tests.title',
+    descKey: 'health.card.architecture.tests.desc',
+    folder: 'src/tests/',
+  },
+];
+
+function getLogLevelTextClass(level: LogLevel): string {
+  switch (level) {
+    case 'ERROR':
+      return 'text-[var(--color-error-text)]';
+    case 'WARN':
+      return 'text-[var(--color-warning-text)]';
+    case 'DEBUG':
+      return 'text-[var(--color-muted)]';
+    case 'INFO':
+    default:
+      return 'text-[var(--color-info-text)]';
+  }
+}
+
+function getLogLevelKey(level: LogLevel): ResourceKey {
+  switch (level) {
+    case 'DEBUG':
+      return 'health.card.logs.level.DEBUG';
+    case 'WARN':
+      return 'health.card.logs.level.WARN';
+    case 'ERROR':
+      return 'health.card.logs.level.ERROR';
+    case 'INFO':
+    default:
+      return 'health.card.logs.level.INFO';
+  }
+}
+
+function extractSafeHashActionUrl(entry: LogEntry): string | null {
+  const detailUrl = entry.details?.actionUrl;
+  if (typeof detailUrl === 'string' && detailUrl.startsWith('#/')) {
+    return detailUrl;
+  }
+  const match = entry.message.match(/(#\/[^\s|]+)/);
+  if (match && match[1].startsWith('#/')) {
+    return match[1];
+  }
+  return null;
+}
+
+export function HealthPage({ currentRoute }: HealthPageProps) {
+  const { currentUser, siteTitle, hasSuperAdmin, hasStaffUser, refreshAuthState } = useAuth();
+  const { clearVisitorAgeCookie } = useAge();
+  const { language, coverageReport } = useLocale();
+  const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null);
+  const [isCheckingHealth, setIsCheckingHealth] = useState<boolean>(true);
+  const [testSuite, setTestSuite] = useState<TestSuiteResult | null>(null);
+  const [isRunningTests, setIsRunningTests] = useState<boolean>(false);
+  const [logs, setLogs] = useState<LogEntry[]>(() => appContainer.logger.getLogs());
+  const [seedSummary, setSeedSummary] = useState<SeedSummary | null>(null);
+  const [usersCount, setUsersCount] = useState<number | null>(null);
+  const [isReseeding, setIsReseeding] = useState<boolean>(false);
+  const [isResettingDb, setIsResettingDb] = useState<boolean>(false);
+  const [isCreatingDevStaff, setIsCreatingDevStaff] = useState<boolean>(false);
+  const [isSeedingSamples, setIsSeedingSamples] = useState<boolean>(false);
+  const [seedFeedback, setSeedFeedback] = useState<string | null>(null);
+  const [devStaffFeedback, setDevStaffFeedback] = useState<string | null>(null);
+  const [simulateError500, setSimulateError500] = useState<boolean>(false);
+  const [showUntranslatedKeys, setShowUntranslatedKeys] = useState<boolean>(false);
+
+  if (envConfig.isDevelopment && simulateError500) {
+    throw new Error('DEV_SIMULATED_ERROR_500_TEST');
+  }
+
+  const [releaseAudit, setReleaseAudit] = useState<{
+    isChecking: boolean;
+    routingReady: boolean;
+    cspMetaPresent: boolean;
+    cspValid: boolean;
+    cspIssues: string[];
+    externalCdnUrls: string[];
+    robotsMetaContent: string;
+    robotsMetaIsNoindex: boolean;
+    robotsTxtReady: boolean;
+    robotsTxtMissing: string[];
+  }>({
+    isChecking: true,
+    routingReady: true,
+    cspMetaPresent: true,
+    cspValid: true,
+    cspIssues: [],
+    externalCdnUrls: [],
+    robotsMetaContent: '',
+    robotsMetaIsNoindex: false,
+    robotsTxtReady: false,
+    robotsTxtMissing: [],
+  });
+
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') {
+      return;
+    }
+
+    let isCancelled = false;
+    let domSettled = false;
+    let robotsFetchSettled = false;
+    let robotsTxtReady = false;
+    let robotsTxtMissing: string[] = [];
+
+    const readDomAudit = () => {
+      if (isCancelled) {
+        return;
+      }
+
+      const cspMetaNodes = Array.from(
+        document.head.querySelectorAll<HTMLMetaElement>(
+          'meta[http-equiv="Content-Security-Policy"]',
+        ),
+      );
+      const cspMetaPresent = cspMetaNodes.length > 0;
+      const cspChecks = cspMetaNodes.map((node) =>
+        validateCspPolicy(node.getAttribute('content') ?? ''),
+      );
+      const validCspCheck = cspChecks.find((check) => check.isValid);
+      const cspValid = Boolean(validCspCheck);
+      const cspIssues = validCspCheck
+        ? []
+        : cspChecks[0]?.issues ?? ['CSP_META_MISSING'];
+
+      const rawResourceUrls: string[] = [
+        ...Array.from(document.querySelectorAll<HTMLLinkElement>('link[href]')).map(
+          (el) => el.getAttribute('href') ?? '',
+        ),
+        ...Array.from(document.querySelectorAll<HTMLScriptElement>('script[src]')).map(
+          (el) => el.getAttribute('src') ?? '',
+        ),
+      ];
+      const externalCdnUrls = auditDocumentExternalCdnUrls(
+        rawResourceUrls,
+        window.location.hostname,
+      );
+
+      const robotsMetaEl = document.head.querySelector<HTMLMetaElement>(
+        'meta[name="robots"]',
+      );
+      const robotsMetaContent = (robotsMetaEl?.getAttribute('content') ?? '').trim();
+      const robotsMetaIsNoindex = robotsMetaContent
+        .toLowerCase()
+        .includes('noindex');
+
+      const routingReady =
+        window.location.hash.startsWith('#/') || currentRoute.startsWith('#/');
+
+      setReleaseAudit({
+        isChecking: !(domSettled && robotsFetchSettled),
+        routingReady,
+        cspMetaPresent,
+        cspValid,
+        cspIssues,
+        externalCdnUrls,
+        robotsMetaContent,
+        robotsMetaIsNoindex,
+        robotsTxtReady,
+        robotsTxtMissing,
+      });
+    };
+
+    const verifyRobotsTxt = async () => {
+      try {
+        const res = await fetch('./robots.txt', { cache: 'no-store' });
+        if (!res.ok) {
+          robotsTxtReady = false;
+          robotsTxtMissing = [`HTTP_${res.status}`];
+        } else {
+          const text = await res.text();
+          const validation = validateRobotsTxtContent(text);
+          robotsTxtReady = validation.isValid;
+          robotsTxtMissing = validation.missingDirectives;
+        }
+      } catch {
+        robotsTxtReady = false;
+        robotsTxtMissing = ['FETCH_FAILED'];
+      } finally {
+        robotsFetchSettled = true;
+        readDomAudit();
+      }
+    };
+
+    const headObserver =
+      typeof MutationObserver !== 'undefined'
+        ? new MutationObserver(() => {
+            readDomAudit();
+          })
+        : null;
+    if (headObserver && document.head) {
+      headObserver.observe(document.head, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['content', 'href', 'src'],
+      });
+    }
+
+    // Run after parent HashRouter usePageMeta useEffect commits DOM meta tags
+    const timerId = window.setTimeout(() => {
+      domSettled = true;
+      readDomAudit();
+    }, 0);
+    queueMicrotask(() => {
+      readDomAudit();
+    });
+    void verifyRobotsTxt();
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(timerId);
+      headObserver?.disconnect();
+    };
+  }, [currentRoute]);
+
+  const refreshLogs = useCallback(() => {
+    setLogs(appContainer.logger.getLogs());
+  }, []);
+
+  const refreshSeedSummary = useCallback(async () => {
+    await appContainer.ensureInitializedAtStartup();
+    const [summary, totalUsers] = await Promise.all([
+      appContainer.databaseSeeder.getSummary(),
+      appContainer.authRepository.countUsers(),
+    ]);
+    setSeedSummary(summary);
+    setUsersCount(totalUsers);
+    await refreshAuthState();
+  }, [refreshAuthState]);
+
+  const performHealthCheck = useCallback(
+    async (shouldLogOutcome: boolean) => {
+      setIsCheckingHealth(true);
+      try {
+        const result = await appContainer.healthCheckService.checkHealth(
+          shouldLogOutcome ? t('logs.healthCheckSuccess') : undefined,
+          shouldLogOutcome ? t('logs.healthCheckFailed') : undefined,
+        );
+        setHealthStatus(result);
+      } finally {
+        setIsCheckingHealth(false);
+        refreshLogs();
+      }
+    },
+    [refreshLogs],
+  );
+
+  useEffect(() => {
+    refreshLogs();
+    void performHealthCheck(false).then(() => refreshSeedSummary());
+  }, [performHealthCheck, refreshLogs, refreshSeedSummary]);
+
+  const handleManualRecheck = () => {
+    void performHealthCheck(true).then(() => refreshSeedSummary());
+  };
+
+  const handleRunTests = async () => {
+    setIsRunningTests(true);
+    try {
+      const suiteResult = await runUnitTests(ALL_UNIT_TESTS, appContainer.clock);
+      setTestSuite(suiteResult);
+      appContainer.logger.info(t('logs.testsCompleted'), {
+        total: suiteResult.total,
+        passed: suiteResult.passed,
+        failed: suiteResult.failed,
+        durationMs: suiteResult.durationMs,
+      });
+    } finally {
+      setIsRunningTests(false);
+      refreshLogs();
+    }
+  };
+
+  const handleReseed = async () => {
+    setIsReseeding(true);
+    try {
+      const result = await appContainer.databaseSeeder.seed(t('logs.seedManualExecuted'));
+      setSeedSummary(result.summary);
+      setSeedFeedback(
+        t('health.card.seed.actionFeedback', {
+          inserted: formatNumber(result.insertedCount),
+        }),
+      );
+    } finally {
+      setIsReseeding(false);
+      refreshLogs();
+    }
+  };
+
+  const handleResetDatabase = async () => {
+    setIsResettingDb(true);
+    try {
+      await appContainer.authService.logout();
+      await appContainer.dataStore.resetDatabase();
+      const result = await appContainer.databaseSeeder.seed(t('logs.databaseResetExecuted'));
+      await ensureStage16CommentsDefaultFlagAsync(appContainer.dataStore);
+      await ensureStage17ContentRequestsDefaultFlagAsync(appContainer.dataStore);
+      await ensureStage18LayoutSeededAsync(appContainer.dataStore);
+      await ensureStage23FilmsDefaultFlagAsync(appContainer.dataStore);
+      await ensureStage24BooksDefaultFlagAsync(appContainer.dataStore);
+      await ensureStage25StoryGeneratorDefaultFlagAsync(appContainer.dataStore);
+      await ensureStage26NewsTickerDefaultFlagAsync(appContainer.dataStore);
+      await ensureStage29GamesDefaultFlagAsync(appContainer.dataStore);
+      await ensureStage31ExclusiveGameSeededAsync(
+        appContainer.dataStore,
+        appContainer.studioExclusiveGameService,
+      );
+      await appContainer.initialSuperAdminService.bootstrapFromEnvIfConfigured(
+        envConfig.initialSuperAdminEmail,
+        envConfig.initialSuperAdminTempPassword,
+        t('setup.defaultSuperAdminDisplayName'),
+      );
+      const totalUsers = await appContainer.authRepository.countUsers();
+      setSeedSummary(result.summary);
+      setUsersCount(totalUsers);
+      setSeedFeedback(
+        t('health.card.seed.resetFeedback', {
+          inserted: formatNumber(result.insertedCount),
+        }),
+      );
+      await refreshAuthState();
+      await performHealthCheck(false);
+    } finally {
+      setIsResettingDb(false);
+      refreshLogs();
+    }
+  };
+
+  const handleClearAgeCookie = () => {
+    if (!envConfig.isDevelopment) {
+      return;
+    }
+    clearVisitorAgeCookie();
+    setSeedFeedback(t('health.card.seed.clearAgeCookieDone'));
+  };
+
+  const handleSeedDevSamples = async () => {
+    if (!envConfig.isDevelopment) {
+      return;
+    }
+    setIsSeedingSamples(true);
+    try {
+      const result = await seedDevAllFormatsSamplesAsync({
+        authRepository: appContainer.authRepository,
+        contentRepository: appContainer.contentRepository,
+        taxonomyRepository: appContainer.taxonomyRepository,
+        fileStorage: appContainer.fileStorage,
+        searchNormalizer: appContainer.searchNormalizer,
+        clock: appContainer.clock,
+      });
+      await refreshSeedSummary();
+      setSeedFeedback(
+        result.insertedCount > 0
+          ? t('health.card.seed.devSamplesSuccess', {
+              count: formatNumber(result.insertedCount),
+            })
+          : t('health.card.seed.devSamplesAlreadySeeded'),
+      );
+    } finally {
+      setIsSeedingSamples(false);
+      refreshLogs();
+    }
+  };
+
+  const handleDownloadLogs = () => {
+    const content = appContainer.logger.formatLogsForExport();
+    if (!content) {
+      return;
+    }
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = t('logs.exportFileName');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleClearLogs = () => {
+    appContainer.logger.clearLogs();
+    refreshLogs();
+  };
+
+  const handleDownloadUntranslatedReport = (formatKind: 'txt' | 'json') => {
+    const content =
+      formatKind === 'json'
+        ? JSON.stringify(
+            {
+              generatedAtUtc: new Date().toISOString(),
+              totalKeysCount: coverageReport.totalKeysCount,
+              translatedKeysCount: coverageReport.translatedKeysCount,
+              untranslatedKeysCount: coverageReport.untranslatedKeysCount,
+              coveragePercent: coverageReport.coveragePercent,
+              untranslatedKeys: coverageReport.untranslatedKeys,
+            },
+            null,
+            2,
+          )
+        : [
+            t('health.card.i18n.reportFileHeader'),
+            `Total: ${coverageReport.totalKeysCount} | Translated: ${coverageReport.translatedKeysCount} | Untranslated: ${coverageReport.untranslatedKeysCount} (${coverageReport.coveragePercent}%)`,
+            '---',
+            ...coverageReport.untranslatedKeys.map(
+              (entry) => `${entry.key}\t${entry.faValue.replace(/\r?\n/g, ' ')}`,
+            ),
+          ].join('\n');
+
+    const blob = new Blob([content], {
+      type:
+        formatKind === 'json'
+          ? 'application/json;charset=utf-8'
+          : 'text/plain;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download =
+      formatKind === 'json'
+        ? 'meraj-untranslated-keys.json'
+        : 'meraj-untranslated-keys.txt';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCreateDevStaff = async () => {
+    setIsCreatingDevStaff(true);
+    try {
+      const res = await appContainer.initialSuperAdminService.createDevStaffForTesting(
+        envConfig.isDevelopment,
+        t('health.card.auth.devStaffDisplayName'),
+        t('health.card.auth.devStaffLogMessage'),
+      );
+      if (res.ok && res.user?.email) {
+        setDevStaffFeedback(
+          t('health.card.auth.devStaffCreated', { email: res.user.email }),
+        );
+        const totalUsers = await appContainer.authRepository.countUsers();
+        setUsersCount(totalUsers);
+        await refreshAuthState();
+      }
+    } finally {
+      setIsCreatingDevStaff(false);
+      refreshLogs();
+    }
+  };
+
+  const environmentText = envConfig.isProduction
+    ? t('health.card.architecture.envProduction')
+    : t('health.card.architecture.envDevelopment');
+
+  const isAppHealthy = healthStatus ? healthStatus.appHealthy : true;
+  const isDbConnected = healthStatus?.database.state === 'connected';
+
+  return (
+    <MainLayout currentRoute={currentRoute}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        {/* Page Heading */}
+        <section className="mb-6 sm:mb-8 pb-6 border-b border-[var(--color-border)] flex flex-wrap items-end justify-between gap-4">
+          <div className="space-y-2 max-w-3xl">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--color-muted)] tabular-nums-strict">
+              <span>{t('app.subtitle')}</span>
+              <span aria-hidden="true">·</span>
+              <span>
+                {t('app.stageLabel', {
+                  stage: formatNumber(envConfig.stageNumber),
+                  total: formatNumber(envConfig.totalStages),
+                })}
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>{t('app.stageName')}</span>
+            </div>
+
+            <h1 className="text-2xl sm:text-3xl font-bold text-[var(--color-text)] tracking-tight text-balance">
+              {t('health.pageTitle')}
+            </h1>
+
+            <p className="text-sm sm:text-base text-[var(--color-muted)] leading-relaxed">
+              {t('health.pageDescription')}
+            </p>
+
+            <div className="pt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-[var(--color-muted)]">
+              <span className="inline-flex items-center gap-1.5">
+                <span>{t('health.metaRouteLabel')}:</span>
+                <span dir="ltr" className="font-mono text-[var(--color-text)]">
+                  {currentRoute}
+                </span>
+              </span>
+              <span aria-hidden="true">·</span>
+              <span className="inline-flex items-center gap-1.5">
+                <span>{t('health.metaDatabaseLabel')}:</span>
+                <span dir="ltr" className="font-mono text-[var(--color-text)] tabular-nums-strict">
+                  {envConfig.databaseName} v{envConfig.databaseVersion}
+                </span>
+              </span>
+              <span aria-hidden="true">·</span>
+              <span className="inline-flex items-center gap-1.5">
+                <span>{t('health.metaEnvironmentLabel')}:</span>
+                <span className="text-[var(--color-text)] font-medium">{environmentText}</span>
+              </span>
+            </div>
+          </div>
+
+          <Button
+            variant="primary"
+            onClick={handleManualRecheck}
+            disabled={isCheckingHealth}
+            startIcon={
+              <RefreshCw
+                className={`w-4 h-4 ${isCheckingHealth ? 'animate-spin' : ''}`}
+              />
+            }
+          >
+            {isCheckingHealth ? t('nav.recheckingAction') : t('nav.recheckAction')}
+          </Button>
+        </section>
+
+        {/* 4-Card Responsive Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+          {/* Card 1: System Status */}
+          <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-card)] shadow-[var(--shadow-card)] p-5 sm:p-6 flex flex-col justify-between">
+            <div>
+              <div className="flex items-start justify-between gap-3 pb-4 border-b border-[var(--color-border)]">
+                <div className="min-w-0">
+                  <h2 className="text-base sm:text-lg font-semibold text-[var(--color-text)] flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-[var(--color-primary)] shrink-0" aria-hidden="true" />
+                    <span>{t('health.card.system.title')}</span>
+                  </h2>
+                  <p className="mt-1 text-xs sm:text-sm text-[var(--color-muted)]">
+                    {t('health.card.system.subtitle')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Primary Health Indicators */}
+              <div className="py-4 space-y-3 border-b border-[var(--color-border)]">
+                <div className="flex items-center justify-between gap-3 py-1">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {isAppHealthy ? (
+                      <CheckCircle2 className="w-5 h-5 text-[var(--color-success-text)] shrink-0" aria-hidden="true" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-[var(--color-error-text)] shrink-0" aria-hidden="true" />
+                    )}
+                    <span
+                      className={`text-sm sm:text-base font-semibold ${
+                        isAppHealthy ? 'text-[var(--color-success-text)]' : 'text-[var(--color-error-text)]'
+                      }`}
+                    >
+                      {isAppHealthy
+                        ? t('health.card.system.appHealthy')
+                        : t('health.card.system.appUnhealthy')}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 py-1">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {isCheckingHealth && !healthStatus ? (
+                      <RefreshCw
+                        className="w-5 h-5 text-[var(--color-muted)] animate-spin shrink-0"
+                        aria-hidden="true"
+                      />
+                    ) : isDbConnected ? (
+                      <Database className="w-5 h-5 text-[var(--color-success-text)] shrink-0" aria-hidden="true" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-[var(--color-error-text)] shrink-0" aria-hidden="true" />
+                    )}
+                    <span
+                      className={`text-sm sm:text-base font-semibold ${
+                        isCheckingHealth && !healthStatus
+                          ? 'text-[var(--color-muted)]'
+                          : isDbConnected
+                            ? 'text-[var(--color-success-text)]'
+                            : 'text-[var(--color-error-text)]'
+                      }`}
+                    >
+                      {isCheckingHealth && !healthStatus
+                        ? t('health.card.system.dbChecking')
+                        : isDbConnected
+                          ? t('health.card.system.dbConnected')
+                          : t('health.card.system.dbDisconnected')}
+                    </span>
+                  </div>
+                </div>
+
+                {healthStatus?.database.errorMessage && (
+                  <p className="text-xs text-[var(--color-error-text)] bg-[var(--color-error-bg)] rounded-[var(--radius-control)] px-3 py-2 break-words">
+                    {t('health.card.system.errorPrefix')}: {healthStatus.database.errorMessage}
+                  </p>
+                )}
+              </div>
+
+              {/* Technical Key-Value Breakdown */}
+              <dl className="divide-y divide-[var(--color-border)] text-xs sm:text-sm">
+                <div className="py-2.5 flex items-center justify-between gap-3">
+                  <dt className="text-[var(--color-muted)]">{t('health.card.system.dbNameLabel')}</dt>
+                  <dd dir="ltr" className="font-mono text-[var(--color-text)] truncate">
+                    {healthStatus?.database.databaseName ?? envConfig.databaseName}
+                  </dd>
+                </div>
+                <div className="py-2.5 flex items-center justify-between gap-3">
+                  <dt className="text-[var(--color-muted)]">{t('health.card.system.dbVersionLabel')}</dt>
+                  <dd dir="ltr" className="font-mono text-[var(--color-text)] tabular-nums-strict">
+                    v{healthStatus?.database.databaseVersion ?? envConfig.databaseVersion}
+                  </dd>
+                </div>
+                <div className="py-2.5 flex items-center justify-between gap-3">
+                  <dt className="text-[var(--color-muted)]">{t('health.card.system.metaStoreLabel')}</dt>
+                  <dd dir="ltr" className="font-mono text-[var(--color-text)]">
+                    {healthStatus?.database.metaStoreName ?? envConfig.metaStoreName}
+                  </dd>
+                </div>
+                <div className="py-2.5 flex items-center justify-between gap-3">
+                  <dt className="text-[var(--color-muted)]">{t('health.card.system.readWriteLabel')}</dt>
+                  <dd
+                    className={`font-medium ${
+                      healthStatus?.database.readWriteVerified
+                        ? 'text-[var(--color-success-text)]'
+                        : 'text-[var(--color-muted)]'
+                    }`}
+                  >
+                    {healthStatus
+                      ? healthStatus.database.readWriteVerified
+                        ? t('health.card.system.readWriteVerified')
+                        : t('health.card.system.readWriteFailed')
+                      : '—'}
+                  </dd>
+                </div>
+                <div className="py-2.5 flex items-center justify-between gap-3">
+                  <dt className="text-[var(--color-muted)]">{t('health.card.system.latencyLabel')}</dt>
+                  <dd className="text-[var(--color-text)] tabular-nums-strict">
+                    {healthStatus
+                      ? t('health.card.system.latencyUnit', {
+                          ms: formatNumber(healthStatus.database.latencyMs),
+                        })
+                      : '—'}
+                  </dd>
+                </div>
+                <div className="py-2.5 flex items-center justify-between gap-3">
+                  <dt className="text-[var(--color-muted)]">{t('health.card.system.lastCheckedJalaliLabel')}</dt>
+                  <dd dir="ltr" className="font-mono text-xs text-[var(--color-text)] tabular-nums-strict">
+                    {healthStatus?.checkedAtJalali ?? '—'}
+                  </dd>
+                </div>
+                <div className="py-2.5 flex items-center justify-between gap-3">
+                  <dt className="text-[var(--color-muted)]">{t('health.card.system.lastCheckedUtcLabel')}</dt>
+                  <dd dir="ltr" className="font-mono text-xs text-[var(--color-muted)] tabular-nums-strict truncate">
+                    {healthStatus?.checkedAtUtc ?? '—'}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+
+            <div className="pt-4 mt-4 border-t border-[var(--color-border)] flex items-center justify-end">
+              <Button
+                variant="secondary"
+                onClick={handleManualRecheck}
+                disabled={isCheckingHealth}
+                startIcon={
+                  <RefreshCw
+                    className={`w-4 h-4 ${isCheckingHealth ? 'animate-spin' : ''}`}
+                  />
+                }
+              >
+                {isCheckingHealth ? t('nav.recheckingAction') : t('nav.recheckAction')}
+              </Button>
+            </div>
+          </section>
+
+          {/* Card 2: 4-Layer Architecture */}
+          <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-card)] shadow-[var(--shadow-card)] p-5 sm:p-6 flex flex-col justify-between">
+            <div>
+              <div className="pb-4 border-b border-[var(--color-border)]">
+                <h2 className="text-base sm:text-lg font-semibold text-[var(--color-text)] flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-[var(--color-primary)] shrink-0" aria-hidden="true" />
+                  <span>{t('health.card.architecture.title')}</span>
+                </h2>
+                <p className="mt-1 text-xs sm:text-sm text-[var(--color-muted)]">
+                  {t('health.card.architecture.subtitle')}
+                </p>
+              </div>
+
+              <ul className="divide-y divide-[var(--color-border)] mt-1">
+                {ARCHITECTURE_LAYERS.map((layer) => (
+                  <li key={layer.id} className="py-3.5 flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <CheckCircle2
+                        className="w-4 h-4 text-[var(--color-success-text)] mt-0.5 shrink-0"
+                        aria-hidden="true"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <span dir="ltr" className="text-sm font-semibold text-[var(--color-text)]">
+                            {t(layer.titleKey)}
+                          </span>
+                          <span aria-hidden="true" className="text-[var(--color-muted)] text-xs">
+                            ·
+                          </span>
+                          <span dir="ltr" className="font-mono text-xs text-[var(--color-muted)]">
+                            {layer.folder}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-[var(--color-muted)] leading-relaxed">
+                          {t(layer.descKey)}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-medium text-[var(--color-success-text)] whitespace-nowrap shrink-0">
+                      {t('health.card.architecture.layerReady')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Runtime Environment Summary */}
+            <dl className="mt-4 pt-4 border-t border-[var(--color-border)] space-y-2 text-xs sm:text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-[var(--color-muted)]">{t('health.card.architecture.envLabel')}</dt>
+                <dd className="font-medium text-[var(--color-text)] text-left">{environmentText}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-[var(--color-muted)]">{t('health.card.architecture.routingLabel')}</dt>
+                <dd dir="ltr" className="font-mono text-xs text-[var(--color-text)] truncate">
+                  {t('health.card.architecture.routingValue')}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-[var(--color-muted)]">{t('health.card.architecture.i18nLabel')}</dt>
+                <dd className="text-xs text-[var(--color-text)] text-left">
+                  {t('health.card.architecture.i18nValue')}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          {/* Card 3: Unit Tests (Stage 1 + Stage 2) */}
+          <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-card)] shadow-[var(--shadow-card)] p-5 sm:p-6 flex flex-col justify-between">
+            <div>
+              <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-[var(--color-border)]">
+                <div className="min-w-0">
+                  <h2 className="text-base sm:text-lg font-semibold text-[var(--color-text)] flex items-center gap-2">
+                    <Play className="w-5 h-5 text-[var(--color-primary)] shrink-0" aria-hidden="true" />
+                    <span>{t('health.card.tests.title')}</span>
+                  </h2>
+                  <p className="mt-1 text-xs sm:text-sm text-[var(--color-muted)]">
+                    {t('health.card.tests.subtitle')}
+                  </p>
+                </div>
+
+                <Button
+                  variant="primary"
+                  onClick={handleRunTests}
+                  disabled={isRunningTests}
+                  startIcon={<Play className="w-4 h-4" />}
+                >
+                  {isRunningTests
+                    ? t('health.card.tests.runningButton')
+                    : t('health.card.tests.runButton')}
+                </Button>
+              </div>
+
+              {/* Test Suite Summary Line */}
+              <div className="py-3 border-b border-[var(--color-border)] text-xs text-[var(--color-muted)] tabular-nums-strict">
+                {testSuite ? (
+                  <span
+                    className={
+                      testSuite.failed === 0
+                        ? 'font-semibold text-[var(--color-success-text)]'
+                        : 'font-semibold text-[var(--color-error-text)]'
+                    }
+                  >
+                    {t('health.card.tests.summary', {
+                      passed: formatNumber(testSuite.passed),
+                      total: formatNumber(testSuite.total),
+                      ms: formatNumber(testSuite.durationMs),
+                    })}
+                  </span>
+                ) : (
+                  <span>{t('health.card.tests.idleHint')}</span>
+                )}
+              </div>
+
+              {/* Test Cases List */}
+              <ul className="divide-y divide-[var(--color-border)] max-h-[420px] overflow-y-auto pl-1">
+                {ALL_UNIT_TESTS.map((testCase) => {
+                  const outcome = testSuite?.results.find((item) => item.id === testCase.id);
+                  const isPassed = outcome?.status === 'passed';
+                  const isFailed = outcome?.status === 'failed';
+
+                  return (
+                    <li key={testCase.id} className="py-3.5 space-y-1.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          {isPassed ? (
+                            <CheckCircle2
+                              className="w-4 h-4 text-[var(--color-success-text)] mt-0.5 shrink-0"
+                              aria-hidden="true"
+                            />
+                          ) : isFailed ? (
+                            <XCircle
+                              className="w-4 h-4 text-[var(--color-error-text)] mt-0.5 shrink-0"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <span
+                              aria-hidden="true"
+                              className="w-4 h-4 mt-0.5 shrink-0 inline-flex items-center justify-center text-[var(--color-muted)] text-xs font-mono"
+                            >
+                              —
+                            </span>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-[var(--color-text)]">
+                              {t(testCase.nameKey as ResourceKey)}
+                            </p>
+                            <p className="mt-0.5 text-xs text-[var(--color-muted)] leading-relaxed">
+                              {t(testCase.descriptionKey as ResourceKey)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col items-end shrink-0 text-xs tabular-nums-strict">
+                          <span
+                            className={`font-medium whitespace-nowrap ${
+                              isPassed
+                                ? 'text-[var(--color-success-text)]'
+                                : isFailed
+                                  ? 'text-[var(--color-error-text)]'
+                                  : 'text-[var(--color-muted)]'
+                            }`}
+                          >
+                            {isPassed
+                              ? t('health.card.tests.statusPassed')
+                              : isFailed
+                                ? t('health.card.tests.statusFailed')
+                                : t('health.card.tests.statusPending')}
+                          </span>
+                          {outcome && (
+                            <span className="text-[var(--color-muted)] mt-0.5">
+                              {t('health.card.system.latencyUnit', {
+                                ms: formatNumber(outcome.durationMs),
+                              })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {outcome?.errorMessage && (
+                        <p
+                          dir="ltr"
+                          className="text-xs font-mono text-[var(--color-error-text)] bg-[var(--color-error-bg)] rounded-[var(--radius-control)] px-3 py-2 break-all"
+                        >
+                          {outcome.errorMessage}
+                        </p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </section>
+
+          {/* Card 4: Logs */}
+          <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-card)] shadow-[var(--shadow-card)] p-5 sm:p-6 flex flex-col justify-between">
+            <div className="flex flex-col h-full">
+              <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-[var(--color-border)]">
+                <div className="min-w-0">
+                  <h2 className="text-base sm:text-lg font-semibold text-[var(--color-text)] flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-[var(--color-primary)] shrink-0" aria-hidden="true" />
+                    <span>{t('health.card.logs.title')}</span>
+                  </h2>
+                  <p className="mt-1 text-xs sm:text-sm text-[var(--color-muted)]">
+                    {t('health.card.logs.subtitle')}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleDownloadLogs}
+                    disabled={logs.length === 0}
+                    startIcon={<Download className="w-4 h-4" />}
+                  >
+                    {t('health.card.logs.downloadButton')}
+                  </Button>
+
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={handleClearLogs}
+                    disabled={logs.length === 0}
+                    startIcon={<Trash2 className="w-4 h-4" />}
+                  >
+                    {t('health.card.logs.clearButton')}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Log Count Line */}
+              <div className="py-3 border-b border-[var(--color-border)] text-xs text-[var(--color-muted)] tabular-nums-strict">
+                {t('health.card.logs.countLabel', { count: formatNumber(logs.length) })}
+              </div>
+
+              {/* Log Entries */}
+              {logs.length === 0 ? (
+                <div className="py-10 text-center space-y-1.5 flex-1 flex flex-col items-center justify-center">
+                  <p className="text-sm font-medium text-[var(--color-text)]">
+                    {t('health.card.logs.emptyTitle')}
+                  </p>
+                  <p className="text-xs text-[var(--color-muted)] max-w-sm leading-relaxed">
+                    {t('health.card.logs.emptyHint')}
+                  </p>
+                </div>
+              ) : (
+                <ul className="divide-y divide-[var(--color-border)] max-h-[420px] overflow-y-auto pl-1">
+                  {logs.map((entry) => {
+                    const safeHashUrl = extractSafeHashActionUrl(entry);
+                    const otpCode =
+                      envConfig.isDevelopment &&
+                      typeof entry.details?.otpCode === 'string'
+                        ? entry.details.otpCode
+                        : null;
+
+                    return (
+                      <li key={entry.id} className="py-3 space-y-1.5">
+                        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
+                          <span className={`font-semibold ${getLogLevelTextClass(entry.level)}`}>
+                            {t(getLogLevelKey(entry.level))}
+                          </span>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[var(--color-muted)] tabular-nums-strict">
+                            <span>{t('health.card.logs.jalaliPrefix')}:</span>
+                            <span dir="ltr" className="font-mono text-[var(--color-text)]">
+                              {entry.jalaliTimestamp}
+                            </span>
+                            <span aria-hidden="true">·</span>
+                            <span>{t('health.card.logs.utcPrefix')}:</span>
+                            <span dir="ltr" className="font-mono text-[var(--color-muted)]">
+                              {entry.utcTimestamp}
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="text-xs sm:text-sm text-[var(--color-text)] leading-relaxed break-words">
+                          {entry.message}
+                        </p>
+
+                        {otpCode && (
+                          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-[var(--radius-control)] bg-[var(--color-info-bg)] text-[var(--color-info-text)] text-xs">
+                            <span className="font-medium">{t('health.card.logs.otpCodeLabel')}:</span>
+                            <code dir="ltr" className="font-mono font-bold tracking-widest select-all">
+                              {otpCode}
+                            </code>
+                          </div>
+                        )}
+
+                        {safeHashUrl && (
+                          <div className="pt-0.5">
+                            <a
+                              href={safeHashUrl}
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-primary)] hover:underline underline-offset-4"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                              <span>{t('health.card.logs.openLinkLabel')}</span>
+                            </a>
+                          </div>
+                        )}
+
+                        {entry.details && Object.keys(entry.details).length > 0 && (
+                          <div className="text-[11px] text-[var(--color-muted)] flex flex-wrap items-baseline gap-1.5">
+                            <span className="shrink-0">{t('health.card.logs.detailsLabel')}:</span>
+                            <code
+                              dir="ltr"
+                              className="font-mono text-[var(--color-text)] bg-[var(--color-surface-alt)] px-1.5 py-0.5 rounded break-all"
+                            >
+                              {JSON.stringify(entry.details)}
+                            </code>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </section>
+        </div>
+
+        {/* Stage 3 Card: Base Seed Data & Migration Verification */}
+        <section className="mt-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-card)] shadow-[var(--shadow-card)] p-5 sm:p-6 space-y-5">
+          <div className="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-[var(--color-border)]">
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-semibold text-[var(--color-text)] flex items-center gap-2">
+                <Database className="w-5 h-5 text-[var(--color-primary)] shrink-0" aria-hidden="true" />
+                <span>{t('health.card.seed.title')}</span>
+              </h2>
+              <p className="mt-1 text-xs sm:text-sm text-[var(--color-muted)]">
+                {t('health.card.seed.subtitle')}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleReseed}
+                disabled={isReseeding || isResettingDb}
+                startIcon={<RefreshCw className={`w-4 h-4 ${isReseeding ? 'animate-spin' : ''}`} />}
+              >
+                {isReseeding
+                  ? t('health.card.seed.reseedingButton')
+                  : t('health.card.seed.reseedButton')}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetDatabase}
+                disabled={isReseeding || isResettingDb}
+                startIcon={<RotateCcw className={`w-4 h-4 ${isResettingDb ? 'animate-spin' : ''}`} />}
+              >
+                {isResettingDb
+                  ? t('health.card.seed.resettingButton')
+                  : t('health.card.seed.resetButton')}
+              </Button>
+
+              {envConfig.isDevelopment && (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleClearAgeCookie}
+                    disabled={isReseeding || isResettingDb || isSeedingSamples}
+                    startIcon={<Trash2 className="w-4 h-4" />}
+                  >
+                    {t('health.card.seed.clearAgeCookieButton')}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSeedDevSamples}
+                    disabled={isReseeding || isResettingDb || isSeedingSamples}
+                    startIcon={<FileText className="w-4 h-4" />}
+                  >
+                    {isSeedingSamples
+                      ? t('health.card.seed.devSamplesRunning')
+                      : t('health.card.seed.devSamplesButton')}
+                  </Button>
+
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => setSimulateError500(true)}
+                    disabled={isReseeding || isResettingDb || isSeedingSamples}
+                    startIcon={<AlertTriangle className="w-4 h-4" />}
+                  >
+                    {t('health.card.seed.simulateError500Button')}
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {seedFeedback && (
+            <Alert
+              variant="success"
+              message={seedFeedback}
+              onDismiss={() => setSeedFeedback(null)}
+            />
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Seeded Table Counts */}
+            <dl className="divide-y divide-[var(--color-border)] text-xs sm:text-sm border border-[var(--color-border)] rounded-[var(--radius-control)] px-4">
+              <div className="py-3 flex items-center justify-between gap-3">
+                <dt className="text-[var(--color-muted)]">{t('health.card.seed.table.ageGroup')}</dt>
+                <dd className="font-semibold text-[var(--color-text)] tabular-nums-strict">
+                  {seedSummary
+                    ? t('health.card.seed.recordCount', {
+                        count: formatNumber(seedSummary.ageGroups),
+                      })
+                    : '—'}
+                </dd>
+              </div>
+              <div className="py-3 flex items-center justify-between gap-3">
+                <dt className="text-[var(--color-muted)]">{t('health.card.seed.table.impactLevel')}</dt>
+                <dd className="font-semibold text-[var(--color-text)] tabular-nums-strict">
+                  {seedSummary
+                    ? t('health.card.seed.recordCount', {
+                        count: formatNumber(seedSummary.impactLevels),
+                      })
+                    : '—'}
+                </dd>
+              </div>
+              <div className="py-3 flex items-center justify-between gap-3">
+                <dt className="text-[var(--color-muted)]">{t('health.card.seed.table.topic')}</dt>
+                <dd className="font-semibold text-[var(--color-text)] tabular-nums-strict">
+                  {seedSummary
+                    ? t('health.card.seed.recordCount', {
+                        count: formatNumber(seedSummary.topics),
+                      })
+                    : '—'}
+                </dd>
+              </div>
+              <div className="py-3 flex items-center justify-between gap-3">
+                <dt className="text-[var(--color-muted)]">{t('health.card.seed.table.featureFlag')}</dt>
+                <dd className="font-semibold text-[var(--color-text)] tabular-nums-strict">
+                  {seedSummary
+                    ? t('health.card.seed.recordCount', {
+                        count: formatNumber(seedSummary.featureFlags),
+                      })
+                    : '—'}
+                </dd>
+              </div>
+              <div className="py-3 flex items-center justify-between gap-3">
+                <dt className="text-[var(--color-muted)]">{t('health.card.seed.table.siteSetting')}</dt>
+                <dd className="font-semibold text-[var(--color-text)] tabular-nums-strict">
+                  {seedSummary
+                    ? t('health.card.seed.recordCount', {
+                        count: formatNumber(seedSummary.siteSettings),
+                      })
+                    : '—'}
+                </dd>
+              </div>
+              <div className="py-3 flex items-center justify-between gap-3">
+                <dt className="text-[var(--color-muted)]">{t('health.card.seed.siteTitleLabel')}</dt>
+                <dd className="font-semibold text-[var(--color-primary)] truncate">
+                  {siteTitle}
+                </dd>
+              </div>
+            </dl>
+
+            {/* FeatureFlags Off-by-Default Breakdown */}
+            <div className="border border-[var(--color-border)] rounded-[var(--radius-control)] p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[var(--color-border)]">
+                <span className="text-xs sm:text-sm font-medium text-[var(--color-muted)]">
+                  {t('health.card.seed.modulesStatusLabel')}
+                </span>
+                <span
+                  className={`text-xs font-semibold tabular-nums-strict ${
+                    seedSummary?.allModulesDisabled
+                      ? 'text-[var(--color-success-text)]'
+                      : 'text-[var(--color-warning-text)]'
+                  }`}
+                >
+                  {seedSummary
+                    ? seedSummary.allModulesDisabled
+                      ? t('health.card.seed.modulesAllOff', {
+                          count: formatNumber(seedSummary.featureFlags),
+                        })
+                      : t('health.card.seed.modulesSomeOn')
+                    : '—'}
+                </span>
+              </div>
+
+              <ul className="divide-y divide-[var(--color-border)] text-xs sm:text-sm">
+                {(seedSummary?.featureFlagItems ?? []).map((flag) => (
+                  <li key={flag.key} className="py-2 flex items-center justify-between gap-3">
+                    <span dir="ltr" className="font-mono text-xs text-[var(--color-text)]">
+                      {flag.key}
+                    </span>
+                    <span
+                      className={`text-xs font-medium ${
+                        flag.isEnabled
+                          ? 'text-[var(--color-warning-text)]'
+                          : 'text-[var(--color-muted)]'
+                      }`}
+                    >
+                      {flag.isEnabled
+                        ? t('health.card.seed.flagOnLabel')
+                        : t('health.card.seed.flagOffLabel')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* Stage 4 Card: Users, Auth & Initial SuperAdmin Status */}
+        <section className="mt-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-card)] shadow-[var(--shadow-card)] p-5 sm:p-6 space-y-5">
+          <div className="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-[var(--color-border)]">
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-semibold text-[var(--color-text)] flex items-center gap-2">
+                <Users className="w-5 h-5 text-[var(--color-primary)] shrink-0" aria-hidden="true" />
+                <span>{t('health.card.auth.title')}</span>
+              </h2>
+              <p className="mt-1 text-xs sm:text-sm text-[var(--color-muted)]">
+                {t('health.card.auth.subtitle')}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {!hasSuperAdmin && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => navigateToHash('/setup/initial-admin')}
+                  startIcon={<ShieldCheck className="w-4 h-4" />}
+                >
+                  {t('health.card.auth.setupButton')}
+                </Button>
+              )}
+
+              {envConfig.isDevelopment && !hasStaffUser && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleCreateDevStaff()}
+                  disabled={isCreatingDevStaff}
+                  startIcon={<UserPlus className="w-4 h-4" />}
+                >
+                  {t('health.card.auth.createDevStaffButton')}
+                </Button>
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigateToHash('/account/login')}
+                startIcon={<LogIn className="w-4 h-4" />}
+              >
+                {t('health.card.auth.loginButton')}
+              </Button>
+
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => navigateToHash('/account/register')}
+                startIcon={<UserPlus className="w-4 h-4" />}
+              >
+                {t('health.card.auth.registerButton')}
+              </Button>
+            </div>
+          </div>
+
+          {devStaffFeedback && (
+            <Alert
+              variant="info"
+              message={devStaffFeedback}
+              onDismiss={() => setDevStaffFeedback(null)}
+            />
+          )}
+
+          <dl className="divide-y divide-[var(--color-border)] text-xs sm:text-sm border border-[var(--color-border)] rounded-[var(--radius-control)] px-4">
+            <div className="py-3 flex items-center justify-between gap-3">
+              <dt className="text-[var(--color-muted)]">{t('health.card.auth.usersCountLabel')}</dt>
+              <dd className="font-semibold text-[var(--color-text)] tabular-nums-strict">
+                {usersCount !== null
+                  ? t('health.card.seed.recordCount', {
+                      count: formatNumber(usersCount),
+                    })
+                  : '—'}
+              </dd>
+            </div>
+
+            <div className="py-3 flex items-center justify-between gap-3">
+              <dt className="text-[var(--color-muted)]">
+                {t('health.card.auth.superAdminStatusLabel')}
+              </dt>
+              <dd
+                className={`font-semibold ${
+                  hasSuperAdmin
+                    ? 'text-[var(--color-success-text)]'
+                    : 'text-[var(--color-warning-text)]'
+                }`}
+              >
+                {hasSuperAdmin
+                  ? t('health.card.auth.superAdminReady')
+                  : t('health.card.auth.superAdminPending')}
+              </dd>
+            </div>
+
+            <div className="py-3 flex items-center justify-between gap-3">
+              <dt className="text-[var(--color-muted)]">
+                {t('health.card.auth.staffStatusLabel')}
+              </dt>
+              <dd
+                className={`font-semibold ${
+                  hasStaffUser
+                    ? 'text-[var(--color-success-text)]'
+                    : 'text-[var(--color-muted)]'
+                }`}
+              >
+                {hasStaffUser
+                  ? t('health.card.auth.staffReady')
+                  : t('health.card.auth.staffPending')}
+              </dd>
+            </div>
+
+            <div className="py-3 flex items-center justify-between gap-3">
+              <dt className="text-[var(--color-muted)]">
+                {t('health.card.auth.currentSessionLabel')}
+              </dt>
+              <dd className="font-medium text-[var(--color-text)]">
+                {currentUser
+                  ? t('health.card.auth.sessionActive', { name: currentUser.displayName })
+                  : t('health.card.auth.sessionGuest')}
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        {/* Stage 22 Card: Phase 1 GitHub Pages Launch Readiness */}
+        <section className="mt-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-card)] shadow-[var(--shadow-card)] p-5 sm:p-6 space-y-5">
+          <div className="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-[var(--color-border)]">
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-semibold text-[var(--color-text)] flex items-center gap-2">
+                <Rocket className="w-5 h-5 text-[var(--color-primary)] shrink-0" aria-hidden="true" />
+                <span>{t('health.card.release.title')}</span>
+              </h2>
+              <p className="mt-1 text-xs sm:text-sm text-[var(--color-muted)]">
+                {t('health.card.release.subtitle')}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigateToHash('/error/500')}
+                startIcon={<AlertTriangle className="w-4 h-4" />}
+              >
+                {t('health.card.release.preview500Button')}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => navigateToHash('/')}
+                startIcon={<Globe className="w-4 h-4" />}
+              >
+                {t('health.card.release.openHomeButton')}
+              </Button>
+            </div>
+          </div>
+
+          <ul className="divide-y divide-[var(--color-border)] text-xs sm:text-sm border border-[var(--color-border)] rounded-[var(--radius-control)] px-4">
+            <li className="py-3 space-y-1">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[var(--color-text)]">
+                  {t('health.card.release.item.routingAndBase')}
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1.5 font-semibold shrink-0 ${
+                    releaseAudit.routingReady
+                      ? 'text-[var(--color-success-text)]'
+                      : 'text-[var(--color-error-text)]'
+                  }`}
+                >
+                  {releaseAudit.routingReady ? (
+                    <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <XCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+                  )}
+                  <span>
+                    {releaseAudit.routingReady
+                      ? t('health.card.release.statusPass')
+                      : t('health.card.release.statusFail')}
+                  </span>
+                </span>
+              </div>
+              {!releaseAudit.routingReady && (
+                <p className="text-[11px] sm:text-xs text-[var(--color-error-text)]">
+                  {t('health.card.release.reason.routingNotHash')}
+                </p>
+              )}
+            </li>
+
+            <li className="py-3 space-y-1">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[var(--color-text)]">
+                  {t('health.card.release.item.databaseSchema', {
+                    version: formatNumber(envConfig.databaseVersion),
+                  })}
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1.5 font-semibold shrink-0 ${
+                    envConfig.databaseVersion >= 14 && isDbConnected
+                      ? 'text-[var(--color-success-text)]'
+                      : isCheckingHealth
+                        ? 'text-[var(--color-warning-text)]'
+                        : 'text-[var(--color-error-text)]'
+                  }`}
+                >
+                  {envConfig.databaseVersion >= 14 && isDbConnected ? (
+                    <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <XCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+                  )}
+                  <span>
+                    {envConfig.databaseVersion >= 14 && isDbConnected
+                      ? t('health.card.release.statusPass')
+                      : isCheckingHealth
+                        ? t('health.card.release.statusChecking')
+                        : t('health.card.release.statusFail')}
+                  </span>
+                </span>
+              </div>
+              {!isCheckingHealth && !(envConfig.databaseVersion >= 14 && isDbConnected) && (
+                <p className="text-[11px] sm:text-xs text-[var(--color-error-text)]">
+                  {t('health.card.release.reason.dbNotReady')}
+                </p>
+              )}
+            </li>
+
+            <li className="py-3 space-y-1">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[var(--color-text)]">
+                  {t('health.card.release.item.cspAndZeroCdn')}
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1.5 font-semibold shrink-0 ${
+                    releaseAudit.cspValid && releaseAudit.externalCdnUrls.length === 0
+                      ? 'text-[var(--color-success-text)]'
+                      : 'text-[var(--color-error-text)]'
+                  }`}
+                >
+                  {releaseAudit.cspValid && releaseAudit.externalCdnUrls.length === 0 ? (
+                    <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <XCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+                  )}
+                  <span>
+                    {releaseAudit.cspValid && releaseAudit.externalCdnUrls.length === 0
+                      ? t('health.card.release.statusPass')
+                      : t('health.card.release.statusFail')}
+                  </span>
+                </span>
+              </div>
+              {!releaseAudit.cspValid && (
+                <p className="text-[11px] sm:text-xs text-[var(--color-error-text)]">
+                  {releaseAudit.cspMetaPresent
+                    ? t('health.card.release.reason.cspInvalidDirectives', {
+                        issues: releaseAudit.cspIssues.join(', '),
+                      })
+                    : t('health.card.release.reason.cspMetaMissing')}
+                </p>
+              )}
+              {releaseAudit.externalCdnUrls.length > 0 && (
+                <p className="text-[11px] sm:text-xs text-[var(--color-error-text)] break-all">
+                  {t('health.card.release.reason.externalCdnDetected', {
+                    urls: releaseAudit.externalCdnUrls.join(', '),
+                  })}
+                </p>
+              )}
+            </li>
+
+            <li className="py-3 space-y-1">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[var(--color-text)]">
+                  {t('health.card.release.item.seoAndNoindex')}
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1.5 font-semibold shrink-0 ${
+                    releaseAudit.robotsMetaIsNoindex && releaseAudit.robotsTxtReady
+                      ? 'text-[var(--color-success-text)]'
+                      : releaseAudit.isChecking
+                        ? 'text-[var(--color-warning-text)]'
+                        : 'text-[var(--color-error-text)]'
+                  }`}
+                >
+                  {releaseAudit.robotsMetaIsNoindex && releaseAudit.robotsTxtReady ? (
+                    <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+                  ) : releaseAudit.isChecking ? (
+                    <RefreshCw className="w-4 h-4 animate-spin shrink-0" aria-hidden="true" />
+                  ) : (
+                    <XCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+                  )}
+                  <span>
+                    {releaseAudit.robotsMetaIsNoindex && releaseAudit.robotsTxtReady
+                      ? t('health.card.release.statusPass')
+                      : releaseAudit.isChecking
+                        ? t('health.card.release.statusChecking')
+                        : t('health.card.release.statusFail')}
+                  </span>
+                </span>
+              </div>
+              {!releaseAudit.isChecking &&
+                !(releaseAudit.robotsMetaIsNoindex && releaseAudit.robotsTxtReady) && (
+                  <p className="text-[11px] sm:text-xs text-[var(--color-error-text)]">
+                    {!releaseAudit.robotsMetaIsNoindex && !releaseAudit.robotsTxtReady
+                      ? t('health.card.release.reason.seoBothMissing')
+                      : !releaseAudit.robotsMetaIsNoindex
+                        ? t('health.card.release.reason.robotsMetaMissing', {
+                            actual: releaseAudit.robotsMetaContent || 'empty',
+                          })
+                        : t('health.card.release.reason.robotsTxtMissing', {
+                            missing: releaseAudit.robotsTxtMissing.join(', '),
+                          })}
+                  </p>
+                )}
+            </li>
+
+            <li className="py-3 space-y-1">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[var(--color-text)]">
+                  {t('health.card.release.item.errorBoundary500')}
+                </span>
+                <span className="inline-flex items-center gap-1.5 font-semibold shrink-0 text-[var(--color-success-text)]">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+                  <span>{t('health.card.release.statusPass')}</span>
+                </span>
+              </div>
+            </li>
+
+            <li className="py-3 space-y-1">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[var(--color-text)]">
+                  {t('health.card.release.item.unitTestsSuite', {
+                    total: formatNumber(ALL_UNIT_TESTS.length),
+                  })}
+                </span>
+                <span
+                  className={`font-semibold tabular-nums-strict shrink-0 ${
+                    testSuite
+                      ? testSuite.failed === 0
+                        ? 'text-[var(--color-success-text)]'
+                        : 'text-[var(--color-error-text)]'
+                      : 'text-[var(--color-muted)]'
+                  }`}
+                >
+                  {testSuite
+                    ? testSuite.failed === 0
+                      ? t('health.card.release.testsPassedValue', {
+                          passed: formatNumber(testSuite.passed),
+                          total: formatNumber(testSuite.total),
+                        })
+                      : t('health.card.release.testsFailedValue', {
+                          failed: formatNumber(testSuite.failed),
+                        })
+                    : t('health.card.release.testsNotRunYet')}
+                </span>
+              </div>
+              {!testSuite && (
+                <p className="text-[11px] sm:text-xs text-[var(--color-muted)]">
+                  {t('health.card.release.reason.testsNotRunYet')}
+                </p>
+              )}
+              {testSuite && testSuite.failed > 0 && (
+                <p className="text-[11px] sm:text-xs text-[var(--color-error-text)]">
+                  {t('health.card.release.reason.testsHaveFailures', {
+                    failed: formatNumber(testSuite.failed),
+                  })}
+                </p>
+              )}
+            </li>
+          </ul>
+
+          <p className="text-xs text-[var(--color-muted)] leading-relaxed">
+            {t('health.card.release.deployHint')}
+          </p>
+        </section>
+
+        {/* Stage 30 Card (Development): Translation Coverage & Untranslated Keys Report */}
+        {envConfig.isDevelopment && (
+          <section className="mt-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-card)] shadow-[var(--shadow-card)] p-5 sm:p-6 space-y-5">
+            <div className="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-[var(--color-border)]">
+              <div className="min-w-0">
+                <h2 className="text-base sm:text-lg font-semibold text-[var(--color-text)] flex items-center gap-2">
+                  <Languages className="w-5 h-5 text-[var(--color-primary)] shrink-0" aria-hidden="true" />
+                  <span>{t('health.card.i18n.title')}</span>
+                </h2>
+                <p className="mt-1 text-xs sm:text-sm text-[var(--color-muted)]">
+                  {t('health.card.i18n.subtitle')}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDownloadUntranslatedReport('txt')}
+                  startIcon={<Download className="w-4 h-4" />}
+                >
+                  {t('health.card.i18n.downloadTxtButton')}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleDownloadUntranslatedReport('json')}
+                  startIcon={<Download className="w-4 h-4" />}
+                >
+                  {t('health.card.i18n.downloadJsonButton')}
+                </Button>
+              </div>
+            </div>
+
+            <dl className="divide-y divide-[var(--color-border)] text-xs sm:text-sm border border-[var(--color-border)] rounded-[var(--radius-control)] px-4">
+              <div className="py-3 flex items-center justify-between gap-3">
+                <dt className="text-[var(--color-muted)]">
+                  {t('health.card.i18n.activeLanguageLabel')}
+                </dt>
+                <dd dir="ltr" className="font-mono font-semibold text-[var(--color-text)]">
+                  {language}
+                </dd>
+              </div>
+              <div className="py-3 flex items-center justify-between gap-3">
+                <dt className="text-[var(--color-muted)]">
+                  {t('health.card.i18n.totalKeysLabel')}
+                </dt>
+                <dd className="font-semibold text-[var(--color-text)] tabular-nums-strict">
+                  {formatNumber(coverageReport.totalKeysCount)}
+                </dd>
+              </div>
+              <div className="py-3 flex items-center justify-between gap-3">
+                <dt className="text-[var(--color-muted)]">
+                  {t('health.card.i18n.translatedKeysLabel')}
+                </dt>
+                <dd className="font-semibold text-[var(--color-success-text)] tabular-nums-strict">
+                  {formatNumber(coverageReport.translatedKeysCount)}
+                </dd>
+              </div>
+              <div className="py-3 flex items-center justify-between gap-3">
+                <dt className="text-[var(--color-muted)]">
+                  {t('health.card.i18n.untranslatedKeysLabel')}
+                </dt>
+                <dd className="font-semibold text-[var(--color-warning-text)] tabular-nums-strict">
+                  {formatNumber(coverageReport.untranslatedKeysCount)}
+                </dd>
+              </div>
+              <div className="py-3 flex items-center justify-between gap-3">
+                <dt className="text-[var(--color-muted)]">
+                  {t('health.card.i18n.coverageLabel')}
+                </dt>
+                <dd className="font-semibold text-[var(--color-primary)] tabular-nums-strict">
+                  {t('health.card.i18n.percentValue', {
+                    percent: formatNumber(coverageReport.coveragePercent),
+                  })}
+                </dd>
+              </div>
+            </dl>
+
+            <div className="space-y-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowUntranslatedKeys((prev) => !prev)}
+              >
+                {showUntranslatedKeys
+                  ? t('health.card.i18n.toggleUntranslatedHide')
+                  : t('health.card.i18n.toggleUntranslatedShow', {
+                      count: formatNumber(coverageReport.untranslatedKeysCount),
+                    })}
+              </Button>
+
+              {showUntranslatedKeys && (
+                coverageReport.untranslatedKeys.length === 0 ? (
+                  <p className="text-xs text-[var(--color-success-text)]">
+                    {t('health.card.i18n.allTranslatedEmpty')}
+                  </p>
+                ) : (
+                  <div className="border border-[var(--color-border)] rounded-[var(--radius-control)] max-h-[340px] overflow-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead className="bg-[var(--color-surface-alt)] sticky top-0 border-b border-[var(--color-border)]">
+                        <tr>
+                          <th className="text-start p-2.5 font-semibold text-[var(--color-text)]">
+                            {t('health.card.i18n.tableKeyHeader')}
+                          </th>
+                          <th className="text-start p-2.5 font-semibold text-[var(--color-text)]">
+                            {t('health.card.i18n.tableFaHeader')}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--color-border)]">
+                        {coverageReport.untranslatedKeys.map((entry) => (
+                          <tr key={entry.key}>
+                            <td dir="ltr" className="p-2.5 font-mono text-[var(--color-primary)] whitespace-nowrap">
+                              {entry.key}
+                            </td>
+                            <td className="p-2.5 text-[var(--color-text)] leading-relaxed">
+                              {entry.faValue}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              )}
+            </div>
+          </section>
+        )}
+      </div>
+    </MainLayout>
+  );
+}

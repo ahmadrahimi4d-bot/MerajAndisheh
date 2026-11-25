@@ -1,0 +1,830 @@
+import type { IFileStorage } from '../../core/abstractions/fileStorage';
+import { AdvancedAnalyticsService } from '../../core/services/advancedAnalyticsService';
+import { AnalyticsDashboardService } from '../../core/services/analyticsDashboardService';
+import { AnnouncementService } from '../../core/services/announcementService';
+import { AuthService } from '../../core/services/authService';
+import { BackupService } from '../../core/services/backupService';
+import { BookPortalService } from '../../core/services/bookPortalService';
+import { CommentService } from '../../core/services/commentService';
+import { ContentCatalogService } from '../../core/services/contentCatalogService';
+import { ContentDetailService } from '../../core/services/contentDetailService';
+import { ContentIntegrityService } from '../../core/services/contentIntegrityService';
+import { ContentManagementService } from '../../core/services/contentManagementService';
+import { ContentRequestService } from '../../core/services/contentRequestService';
+import { DailyStatAggregationService } from '../../core/services/dailyStatAggregationService';
+import { DownloadService } from '../../core/services/downloadService';
+import { FileUploadService } from '../../core/services/fileUploadService';
+import { FilmPortalService } from '../../core/services/filmPortalService';
+import { GamePortalService } from '../../core/services/gamePortalService';
+import { HealthCheckService } from '../../core/services/HealthCheckService';
+import { HomePageService } from '../../core/services/homePageService';
+import { InitialSuperAdminService } from '../../core/services/initialSuperAdminService';
+import { InteractionService } from '../../core/services/interactionService';
+import { LayoutManagementService } from '../../core/services/layoutManagementService';
+import { OtpService } from '../../core/services/otpService';
+import { PermissionPolicyService } from '../../core/services/permissionPolicyService';
+import { PersonalizationService } from '../../core/services/personalizationService';
+import { ProfileService } from '../../core/services/profileService';
+import { RateLimiter } from '../../core/services/rateLimiter';
+import { S3PresignedUrlService } from '../../core/services/s3PresignedUrlService';
+import { SearchNormalizer } from '../../core/services/searchNormalizer';
+import { SearchSuggestionService } from '../../core/services/searchSuggestionService';
+import { SettingsManagementService } from '../../core/services/settingsManagementService';
+import { SitemapService } from '../../core/services/sitemapService';
+import { SmartImportService } from '../../core/services/smartImportService';
+import { StaffManagementService } from '../../core/services/staffManagementService';
+import { StorageMigrationService } from '../../core/services/storageMigrationService';
+import { StoryService } from '../../core/services/storyService';
+import { StudioExclusiveGameService } from '../../core/services/studioExclusiveGameService';
+import { TaxonomyService } from '../../core/services/taxonomyService';
+import { UserManagementService } from '../../core/services/userManagementService';
+import { ViewTrackerService } from '../../core/services/viewTrackerService';
+import { SystemClock } from '../../infrastructure/clock/SystemClock';
+import { envConfig } from '../../infrastructure/config/envConfig';
+import { StudioExclusiveGameCatalog } from '../../infrastructure/games/studioExclusiveGames/StudioExclusiveGameCatalog';
+import { IndexedDbAccountCleanupRepository } from '../../infrastructure/data/IndexedDbAccountCleanupRepository';
+import { IndexedDbAdminRepository } from '../../infrastructure/data/IndexedDbAdminRepository';
+import { IndexedDbAnnouncementRepository } from '../../infrastructure/data/IndexedDbAnnouncementRepository';
+import { IndexedDbAuthRepository } from '../../infrastructure/data/IndexedDbAuthRepository';
+import { IndexedDbBackupRepository } from '../../infrastructure/data/IndexedDbBackupRepository';
+import { IndexedDbBackupSnapshotProvider } from '../../infrastructure/data/IndexedDbBackupSnapshotProvider';
+import { IndexedDbBookRepository } from '../../infrastructure/data/IndexedDbBookRepository';
+import { IndexedDbCommentRepository } from '../../infrastructure/data/IndexedDbCommentRepository';
+import { IndexedDbContentRepository } from '../../infrastructure/data/IndexedDbContentRepository';
+import { IndexedDbContentRequestRepository } from '../../infrastructure/data/IndexedDbContentRequestRepository';
+import { IndexedDbDailyStatRepository } from '../../infrastructure/data/IndexedDbDailyStatRepository';
+import { IndexedDbDataStore } from '../../infrastructure/data/IndexedDbDataStore';
+import { IndexedDbDownloadEventRepository } from '../../infrastructure/data/IndexedDbDownloadEventRepository';
+import { IndexedDbFilmRepository } from '../../infrastructure/data/IndexedDbFilmRepository';
+import { IndexedDbGameRepository } from '../../infrastructure/data/IndexedDbGameRepository';
+import { IndexedDbInteractionRepository } from '../../infrastructure/data/IndexedDbInteractionRepository';
+import { IndexedDbLayoutRepository } from '../../infrastructure/data/IndexedDbLayoutRepository';
+import { IndexedDbTaxonomyRepository } from '../../infrastructure/data/IndexedDbTaxonomyRepository';
+import { IndexedDbUserTopicAffinityRepository } from '../../infrastructure/data/IndexedDbUserTopicAffinityRepository';
+import { IndexedDbViewEventRepository } from '../../infrastructure/data/IndexedDbViewEventRepository';
+import { STORE_NAMES } from '../../infrastructure/data/migrations';
+import { LocalSessionTokenStore } from '../../infrastructure/data/LocalSessionTokenStore';
+import { DatabaseSeeder } from '../../infrastructure/data/seed';
+import { ensureStage18LayoutSeededAsync } from '../../infrastructure/data/stage18LayoutSeed';
+import { BackupScheduler } from '../../infrastructure/jobs/BackupScheduler';
+import { DailyStatsAggregationJob } from '../../infrastructure/jobs/DailyStatsAggregationJob';
+import { AppLogger } from '../../infrastructure/logging/AppLogger';
+import { DevEmailSender } from '../../infrastructure/messaging/DevEmailSender';
+import { DevSmsSender } from '../../infrastructure/messaging/DevSmsSender';
+import { BrowserPasswordHasher } from '../../infrastructure/security/BrowserPasswordHasher';
+import { HmacDownloadTokenProtector } from '../../infrastructure/security/HmacDownloadTokenProtector';
+import { BrowserAffinityCookieStorage } from '../../infrastructure/storage/BrowserAffinityCookieStorage';
+import { BrowserAgeCookieStorage } from '../../infrastructure/storage/BrowserAgeCookieStorage';
+import { BrowserCultureCookieStorage } from '../../infrastructure/storage/BrowserCultureCookieStorage';
+import { BrowserSessionAnnouncementDismissStorage } from '../../infrastructure/storage/BrowserSessionAnnouncementDismissStorage';
+import { BrowserVisitorIdStorage } from '../../infrastructure/storage/BrowserVisitorIdStorage';
+import { IndexedDbS3StorageConfigStore } from '../../infrastructure/storage/IndexedDbS3StorageConfigStore';
+import { LocalIndexedDbFileStorage } from '../../infrastructure/storage/LocalIndexedDbFileStorage';
+import { RoutingFileStorage } from '../../infrastructure/storage/RoutingFileStorage';
+import { S3FileStorage } from '../../infrastructure/storage/S3FileStorage';
+import { Html5GamePackageService } from '../../infrastructure/storage/html5GamePackageService';
+import { t } from '../resources/i18n';
+
+export interface AppContainer {
+  clock: SystemClock;
+  logger: AppLogger;
+  dataStore: IndexedDbDataStore;
+  healthCheckService: HealthCheckService;
+  databaseSeeder: DatabaseSeeder;
+  authRepository: IndexedDbAuthRepository;
+  adminRepository: IndexedDbAdminRepository;
+  taxonomyRepository: IndexedDbTaxonomyRepository;
+  contentRepository: IndexedDbContentRepository;
+  viewEventRepository: IndexedDbViewEventRepository;
+  downloadEventRepository: IndexedDbDownloadEventRepository;
+  interactionRepository: IndexedDbInteractionRepository;
+  commentRepository: IndexedDbCommentRepository;
+  contentRequestRepository: IndexedDbContentRequestRepository;
+  layoutRepository: IndexedDbLayoutRepository;
+  announcementRepository: IndexedDbAnnouncementRepository;
+  dailyStatRepository: IndexedDbDailyStatRepository;
+  userTopicAffinityRepository: IndexedDbUserTopicAffinityRepository;
+  filmRepository: IndexedDbFilmRepository;
+  bookRepository: IndexedDbBookRepository;
+  gameRepository: IndexedDbGameRepository;
+  gamePackageStorage: Html5GamePackageService;
+  studioExclusiveGameCatalog: StudioExclusiveGameCatalog;
+  accountCleanupRepository: IndexedDbAccountCleanupRepository;
+  backupRepository: IndexedDbBackupRepository;
+  backupSnapshotProvider: IndexedDbBackupSnapshotProvider;
+  downloadTokenProtector: HmacDownloadTokenProtector;
+  s3StorageConfigStore: IndexedDbS3StorageConfigStore;
+  localFileStorage: LocalIndexedDbFileStorage;
+  s3FileStorage: S3FileStorage;
+  fileStorage: IFileStorage;
+  agePreferenceStorage: BrowserAgeCookieStorage;
+  cultureStorage: BrowserCultureCookieStorage;
+  guestAffinityStorage: BrowserAffinityCookieStorage;
+  visitorIdStorage: BrowserVisitorIdStorage;
+  announcementDismissStorage: BrowserSessionAnnouncementDismissStorage;
+  passwordHasher: BrowserPasswordHasher;
+  emailSender: DevEmailSender;
+  smsSender: DevSmsSender;
+  rateLimiter: RateLimiter;
+  searchNormalizer: SearchNormalizer;
+  authService: AuthService;
+  otpService: OtpService;
+  initialSuperAdminService: InitialSuperAdminService;
+  contentIntegrityService: ContentIntegrityService;
+  permissionPolicyService: PermissionPolicyService;
+  staffManagementService: StaffManagementService;
+  userManagementService: UserManagementService;
+  settingsManagementService: SettingsManagementService;
+  fileUploadService: FileUploadService;
+  taxonomyService: TaxonomyService;
+  contentManagementService: ContentManagementService;
+  contentCatalogService: ContentCatalogService;
+  contentDetailService: ContentDetailService;
+  viewTrackerService: ViewTrackerService;
+  downloadService: DownloadService;
+  interactionService: InteractionService;
+  commentService: CommentService;
+  contentRequestService: ContentRequestService;
+  personalizationService: PersonalizationService;
+  filmPortalService: FilmPortalService;
+  bookPortalService: BookPortalService;
+  gamePortalService: GamePortalService;
+  studioExclusiveGameService: StudioExclusiveGameService;
+  homePageService: HomePageService;
+  layoutManagementService: LayoutManagementService;
+  announcementService: AnnouncementService;
+  analyticsDashboardService: AnalyticsDashboardService;
+  dailyStatAggregationService: DailyStatAggregationService;
+  advancedAnalyticsService: AdvancedAnalyticsService;
+  dailyStatsAggregationJob: DailyStatsAggregationJob;
+  backupService: BackupService;
+  backupScheduler: BackupScheduler;
+  profileService: ProfileService;
+  searchSuggestionService: SearchSuggestionService;
+  sitemapService: SitemapService;
+  smartImportService: SmartImportService;
+  storyService: StoryService;
+  s3PresignedUrlService: S3PresignedUrlService;
+  storageMigrationService: StorageMigrationService;
+  recordStartupLogOnce: () => void;
+  ensureInitializedAtStartup: () => Promise<void>;
+}
+
+const clock = new SystemClock();
+const logger = new AppLogger(clock, envConfig.logStorageKey, envConfig.maxStoredLogs);
+const dataStore = new IndexedDbDataStore(
+  envConfig.databaseName,
+  envConfig.databaseVersion,
+  envConfig.metaStoreName,
+);
+const healthCheckService = new HealthCheckService(dataStore, logger, clock);
+const databaseSeeder = new DatabaseSeeder(dataStore, logger);
+const authRepository = new IndexedDbAuthRepository(dataStore);
+const adminRepository = new IndexedDbAdminRepository(dataStore);
+const taxonomyRepository = new IndexedDbTaxonomyRepository(dataStore);
+const contentRepository = new IndexedDbContentRepository(dataStore);
+const viewEventRepository = new IndexedDbViewEventRepository(dataStore);
+const downloadEventRepository = new IndexedDbDownloadEventRepository(dataStore);
+const interactionRepository = new IndexedDbInteractionRepository(dataStore);
+const commentRepository = new IndexedDbCommentRepository(dataStore);
+const contentRequestRepository = new IndexedDbContentRequestRepository(dataStore);
+const layoutRepository = new IndexedDbLayoutRepository(dataStore);
+const announcementRepository = new IndexedDbAnnouncementRepository(dataStore);
+const dailyStatRepository = new IndexedDbDailyStatRepository(dataStore);
+const userTopicAffinityRepository = new IndexedDbUserTopicAffinityRepository(dataStore);
+const filmRepository = new IndexedDbFilmRepository(dataStore);
+const bookRepository = new IndexedDbBookRepository(dataStore);
+const gameRepository = new IndexedDbGameRepository(dataStore);
+const gamePackageStorage = new Html5GamePackageService(dataStore);
+const studioExclusiveGameCatalog = new StudioExclusiveGameCatalog();
+const accountCleanupRepository = new IndexedDbAccountCleanupRepository(dataStore);
+const backupRepository = new IndexedDbBackupRepository(dataStore, clock);
+const backupSnapshotProvider = new IndexedDbBackupSnapshotProvider(dataStore);
+const downloadTokenProtector = new HmacDownloadTokenProtector();
+const s3StorageConfigStore = new IndexedDbS3StorageConfigStore(dataStore);
+const localFileStorage = new LocalIndexedDbFileStorage(dataStore, clock);
+const s3FileStorage = new S3FileStorage(dataStore, s3StorageConfigStore, clock);
+const fileStorage: IFileStorage = new RoutingFileStorage({
+  localStorage: localFileStorage,
+  s3Storage: s3FileStorage,
+  configStore: s3StorageConfigStore,
+});
+const s3PresignedUrlService = new S3PresignedUrlService(clock);
+const agePreferenceStorage = new BrowserAgeCookieStorage();
+const cultureStorage = new BrowserCultureCookieStorage();
+const guestAffinityStorage = new BrowserAffinityCookieStorage();
+const visitorIdStorage = new BrowserVisitorIdStorage();
+const announcementDismissStorage = new BrowserSessionAnnouncementDismissStorage();
+const passwordHasher = new BrowserPasswordHasher();
+const sessionTokenStore = new LocalSessionTokenStore(envConfig.sessionStorageKey);
+const emailSender = new DevEmailSender(logger, t('logs.devEmailPrefix'));
+const smsSender = new DevSmsSender(
+  logger,
+  t('logs.devSmsPrefix'),
+  envConfig.isDevelopment,
+);
+const rateLimiter = new RateLimiter(clock, 20, 60 * 1000);
+const searchNormalizer = new SearchNormalizer();
+
+const personalizationService = new PersonalizationService({
+  affinityRepository: userTopicAffinityRepository,
+  guestAffinityStorage,
+  adminRepository,
+  contentRepository,
+  taxonomyRepository,
+  viewEventRepository,
+  clock,
+  logger,
+});
+
+const authService = new AuthService(
+  authRepository,
+  passwordHasher,
+  emailSender,
+  clock,
+  logger,
+  sessionTokenStore,
+  {
+    confirmSubject: t('auth.email.confirmSubject'),
+    confirmBody: t('auth.email.confirmBody'),
+    resetSubject: t('auth.email.resetSubject'),
+    resetBody: t('auth.email.resetBody'),
+  },
+  rateLimiter,
+  personalizationService,
+);
+
+const otpService = new OtpService(
+  authRepository,
+  passwordHasher,
+  smsSender,
+  clock,
+  logger,
+  sessionTokenStore,
+  rateLimiter,
+  t('auth.otp.smsTemplate'),
+  personalizationService,
+);
+
+const initialSuperAdminService = new InitialSuperAdminService(
+  authRepository,
+  passwordHasher,
+  clock,
+  logger,
+);
+
+const contentIntegrityService = new ContentIntegrityService(authRepository);
+
+const permissionPolicyService = new PermissionPolicyService(adminRepository, logger);
+const staffManagementService = new StaffManagementService(
+  adminRepository,
+  passwordHasher,
+  clock,
+  logger,
+  permissionPolicyService,
+);
+const userManagementService = new UserManagementService(
+  adminRepository,
+  logger,
+  permissionPolicyService,
+);
+const settingsManagementService = new SettingsManagementService(
+  adminRepository,
+  logger,
+  permissionPolicyService,
+);
+const fileUploadService = new FileUploadService(
+  fileStorage,
+  adminRepository,
+  permissionPolicyService,
+  logger,
+);
+const taxonomyService = new TaxonomyService(
+  taxonomyRepository,
+  permissionPolicyService,
+  fileUploadService,
+  logger,
+);
+const contentManagementService = new ContentManagementService(
+  contentRepository,
+  taxonomyRepository,
+  permissionPolicyService,
+  fileUploadService,
+  searchNormalizer,
+  clock,
+  logger,
+);
+const contentCatalogService = new ContentCatalogService(
+  contentRepository,
+  taxonomyRepository,
+  adminRepository,
+  searchNormalizer,
+);
+const contentDetailService = new ContentDetailService(
+  contentRepository,
+  taxonomyRepository,
+  fileStorage,
+);
+const viewTrackerService = new ViewTrackerService(
+  viewEventRepository,
+  contentRepository,
+  clock,
+  logger,
+  taxonomyRepository,
+  personalizationService,
+);
+const downloadService = new DownloadService(
+  contentRepository,
+  downloadEventRepository,
+  fileStorage,
+  downloadTokenProtector,
+  clock,
+  logger,
+  {
+    getStorageConfigAsync: () => s3StorageConfigStore.getConfigAsync(),
+    presignedUrlService: s3PresignedUrlService,
+  },
+);
+const interactionService = new InteractionService(
+  interactionRepository,
+  contentRepository,
+  taxonomyRepository,
+  clock,
+  logger,
+);
+const commentService = new CommentService({
+  commentRepository,
+  contentRepository,
+  adminRepository,
+  taxonomyRepository,
+  permissionPolicyService,
+  searchNormalizer,
+  clock,
+  logger,
+  deletedDisplayName: t('user.deletedDisplayName'),
+});
+const contentRequestService = new ContentRequestService({
+  contentRequestRepository,
+  contentRepository,
+  adminRepository,
+  taxonomyRepository,
+  permissionPolicyService,
+  searchNormalizer,
+  clock,
+  logger,
+  deletedDisplayName: t('user.deletedDisplayName'),
+});
+const filmPortalService = new FilmPortalService({
+  filmRepository,
+  contentRepository,
+  taxonomyRepository,
+  adminRepository,
+  policyService: permissionPolicyService,
+  logger,
+  searchNormalizer,
+  fileStorage,
+});
+const bookPortalService = new BookPortalService({
+  bookRepository,
+  contentRepository,
+  taxonomyRepository,
+  adminRepository,
+  policyService: permissionPolicyService,
+  logger,
+  searchNormalizer,
+  fileStorage,
+});
+const gamePortalService = new GamePortalService({
+  gameRepository,
+  packageStorage: gamePackageStorage,
+  taxonomyRepository,
+  adminRepository,
+  policyService: permissionPolicyService,
+  clock,
+  logger,
+  deletedDisplayName: t('user.deletedDisplayName'),
+  searchNormalizer,
+});
+const studioExclusiveGameService = new StudioExclusiveGameService({
+  catalog: studioExclusiveGameCatalog,
+  gameRepository,
+  packageStorage: gamePackageStorage,
+  taxonomyRepository,
+  adminRepository,
+  policyService: permissionPolicyService,
+  clock,
+  logger,
+});
+const homePageService = new HomePageService({
+  layoutRepository,
+  contentRepository,
+  taxonomyRepository,
+  adminRepository,
+  viewEventRepository,
+  clock,
+  personalizationService,
+});
+const layoutManagementService = new LayoutManagementService({
+  layoutRepository,
+  taxonomyRepository,
+  permissionPolicyService,
+  fileUploadService,
+  fileStorage,
+  logger,
+});
+const announcementService = new AnnouncementService({
+  announcementRepository,
+  adminRepository,
+  dismissStorage: announcementDismissStorage,
+  permissionPolicyService,
+  clock,
+  logger,
+});
+const analyticsDashboardService = new AnalyticsDashboardService({
+  viewEventRepository,
+  downloadEventRepository,
+  contentRepository,
+  permissionPolicyService,
+  clock,
+  logger,
+});
+const dailyStatAggregationService = new DailyStatAggregationService(
+  dataStore,
+  clock,
+  logger,
+);
+const advancedAnalyticsService = new AdvancedAnalyticsService({
+  dailyStatRepository,
+  dailyStatAggregationService,
+  adminRepository,
+  taxonomyRepository,
+  permissionPolicyService,
+  clock,
+  logger,
+});
+const dailyStatsAggregationJob = new DailyStatsAggregationJob({
+  aggregationService: dailyStatAggregationService,
+  clock,
+  logger,
+});
+const backupService = new BackupService({
+  backupLogRepository: backupRepository,
+  backupStorage: backupRepository,
+  snapshotProvider: backupSnapshotProvider,
+  permissionPolicyService,
+  clock,
+  logger,
+});
+const backupScheduler = new BackupScheduler({
+  backupService,
+  backupLogRepository: backupRepository,
+  clock,
+  logger,
+});
+const profileService = new ProfileService({
+  authRepository,
+  contentRepository,
+  interactionRepository,
+  downloadEventRepository,
+  cleanupRepository: accountCleanupRepository,
+  passwordHasher,
+  sessionTokenStore,
+  clock,
+  logger,
+  deletedDisplayName: t('user.deletedDisplayName'),
+});
+const searchSuggestionService = new SearchSuggestionService(
+  contentRepository,
+  taxonomyRepository,
+  searchNormalizer,
+);
+const sitemapService = new SitemapService({
+  contentRepository,
+  layoutRepository,
+  clock,
+});
+const smartImportService = new SmartImportService(
+  taxonomyRepository,
+  permissionPolicyService,
+  searchNormalizer,
+  logger,
+);
+const storyService = new StoryService({
+  contentRepository,
+  adminRepository,
+  downloadEventRepository,
+  clock,
+  logger,
+});
+const storageMigrationService = new StorageMigrationService({
+  configStore: s3StorageConfigStore,
+  localStorage: localFileStorage,
+  s3Storage: s3FileStorage,
+  contentRepository,
+  policyService: permissionPolicyService,
+  clock,
+  logger,
+});
+
+export const STAGE16_COMMENTS_FLAG_META_KEY = 'stage16_comments_default_enabled_v1';
+
+export async function ensureStage16CommentsDefaultFlagAsync(
+  store: IndexedDbDataStore = dataStore,
+): Promise<void> {
+  const existingMeta = await store.getMeta(STAGE16_COMMENTS_FLAG_META_KEY);
+  if (existingMeta) {
+    return;
+  }
+  await store.putRecord(STORE_NAMES.FEATURE_FLAGS, {
+    key: 'Comments',
+    isEnabled: true,
+  });
+  await store.setMeta({
+    key: STAGE16_COMMENTS_FLAG_META_KEY,
+    value: '1',
+    updatedAtUtc: clock.nowUtcIso(),
+  });
+}
+
+export const STAGE17_CONTENT_REQUESTS_FLAG_META_KEY =
+  'stage17_content_requests_default_enabled_v1';
+
+export async function ensureStage17ContentRequestsDefaultFlagAsync(
+  store: IndexedDbDataStore = dataStore,
+): Promise<void> {
+  const existingMeta = await store.getMeta(
+    STAGE17_CONTENT_REQUESTS_FLAG_META_KEY,
+  );
+  if (existingMeta) {
+    return;
+  }
+  await store.putRecord(STORE_NAMES.FEATURE_FLAGS, {
+    key: 'ContentRequests',
+    isEnabled: true,
+  });
+  await store.setMeta({
+    key: STAGE17_CONTENT_REQUESTS_FLAG_META_KEY,
+    value: '1',
+    updatedAtUtc: clock.nowUtcIso(),
+  });
+}
+
+export const STAGE23_FILMS_FLAG_META_KEY = 'stage23_films_default_enabled_v1';
+
+export async function ensureStage23FilmsDefaultFlagAsync(
+  store: IndexedDbDataStore = dataStore,
+): Promise<void> {
+  const existingMeta = await store.getMeta(STAGE23_FILMS_FLAG_META_KEY);
+  if (existingMeta) {
+    return;
+  }
+  await store.putRecord(STORE_NAMES.FEATURE_FLAGS, {
+    key: 'Films',
+    isEnabled: true,
+  });
+  await store.setMeta({
+    key: STAGE23_FILMS_FLAG_META_KEY,
+    value: '1',
+    updatedAtUtc: clock.nowUtcIso(),
+  });
+}
+
+export const STAGE24_BOOKS_FLAG_META_KEY = 'stage24_books_default_enabled_v1';
+
+export async function ensureStage24BooksDefaultFlagAsync(
+  store: IndexedDbDataStore = dataStore,
+): Promise<void> {
+  const existingMeta = await store.getMeta(STAGE24_BOOKS_FLAG_META_KEY);
+  if (existingMeta) {
+    return;
+  }
+  await store.putRecord(STORE_NAMES.FEATURE_FLAGS, {
+    key: 'Books',
+    isEnabled: true,
+  });
+  await store.setMeta({
+    key: STAGE24_BOOKS_FLAG_META_KEY,
+    value: '1',
+    updatedAtUtc: clock.nowUtcIso(),
+  });
+}
+
+export const STAGE25_STORY_GENERATOR_FLAG_META_KEY =
+  'stage25_story_generator_default_enabled_v1';
+
+export async function ensureStage25StoryGeneratorDefaultFlagAsync(
+  store: IndexedDbDataStore = dataStore,
+): Promise<void> {
+  const existingMeta = await store.getMeta(STAGE25_STORY_GENERATOR_FLAG_META_KEY);
+  if (existingMeta) {
+    return;
+  }
+  await store.putRecord(STORE_NAMES.FEATURE_FLAGS, {
+    key: 'StoryGenerator',
+    isEnabled: true,
+  });
+  await store.setMeta({
+    key: STAGE25_STORY_GENERATOR_FLAG_META_KEY,
+    value: '1',
+    updatedAtUtc: clock.nowUtcIso(),
+  });
+}
+
+export const STAGE26_NEWS_TICKER_FLAG_META_KEY =
+  'stage26_news_ticker_default_enabled_v1';
+
+export async function ensureStage26NewsTickerDefaultFlagAsync(
+  store: IndexedDbDataStore = dataStore,
+): Promise<void> {
+  const existingMeta = await store.getMeta(STAGE26_NEWS_TICKER_FLAG_META_KEY);
+  if (existingMeta) {
+    return;
+  }
+  await store.putRecord(STORE_NAMES.FEATURE_FLAGS, {
+    key: 'NewsTicker',
+    isEnabled: true,
+  });
+  await store.setMeta({
+    key: STAGE26_NEWS_TICKER_FLAG_META_KEY,
+    value: '1',
+    updatedAtUtc: clock.nowUtcIso(),
+  });
+}
+
+export const STAGE29_GAMES_FLAG_META_KEY =
+  'stage29_games_default_enabled_v1';
+
+export async function ensureStage29GamesDefaultFlagAsync(
+  store: IndexedDbDataStore = dataStore,
+): Promise<void> {
+  const existingMeta = await store.getMeta(STAGE29_GAMES_FLAG_META_KEY);
+  if (existingMeta) {
+    return;
+  }
+  await store.putRecord(STORE_NAMES.FEATURE_FLAGS, {
+    key: 'Games',
+    isEnabled: true,
+  });
+  await store.setMeta({
+    key: STAGE29_GAMES_FLAG_META_KEY,
+    value: '1',
+    updatedAtUtc: clock.nowUtcIso(),
+  });
+}
+
+export const STAGE31_EXCLUSIVE_GAME_SEED_META_KEY =
+  'stage31_exclusive_game_seeded_v1';
+
+export async function ensureStage31ExclusiveGameSeededAsync(
+  store: IndexedDbDataStore = dataStore,
+  service: StudioExclusiveGameService = studioExclusiveGameService,
+): Promise<void> {
+  const existingMeta = await store.getMeta(STAGE31_EXCLUSIVE_GAME_SEED_META_KEY);
+  if (existingMeta) {
+    return;
+  }
+  await service.ensureDefaultExclusiveGameSeededAsync('media-literacy-detective');
+  await store.setMeta({
+    key: STAGE31_EXCLUSIVE_GAME_SEED_META_KEY,
+    value: '1',
+    updatedAtUtc: clock.nowUtcIso(),
+  });
+}
+
+let startupRecordedInSession = false;
+let startupInitPromise: Promise<void> | null = null;
+
+function recordStartupLogOnce(): void {
+  if (startupRecordedInSession) {
+    return;
+  }
+  startupRecordedInSession = true;
+
+  logger.info(t('logs.startupMessage'), {
+    stage: envConfig.stageNumber,
+    environment: envConfig.environment,
+    database: envConfig.databaseName,
+    databaseVersion: envConfig.databaseVersion,
+    route:
+      typeof window !== 'undefined'
+        ? window.location.hash || envConfig.defaultHashRoute
+        : envConfig.defaultHashRoute,
+  });
+}
+
+function ensureInitializedAtStartup(): Promise<void> {
+  if (!startupInitPromise) {
+    startupInitPromise = (async () => {
+      try {
+        await databaseSeeder.seed(t('logs.seedExecuted'));
+        await ensureStage16CommentsDefaultFlagAsync(dataStore);
+        await ensureStage17ContentRequestsDefaultFlagAsync(dataStore);
+        await ensureStage23FilmsDefaultFlagAsync(dataStore);
+        await ensureStage24BooksDefaultFlagAsync(dataStore);
+        await ensureStage25StoryGeneratorDefaultFlagAsync(dataStore);
+        await ensureStage26NewsTickerDefaultFlagAsync(dataStore);
+        await ensureStage29GamesDefaultFlagAsync(dataStore);
+        await ensureStage18LayoutSeededAsync(dataStore);
+        await ensureStage31ExclusiveGameSeededAsync(
+          dataStore,
+          studioExclusiveGameService,
+        );
+        await initialSuperAdminService.bootstrapFromEnvIfConfigured(
+          envConfig.initialSuperAdminEmail,
+          envConfig.initialSuperAdminTempPassword,
+          t('setup.defaultSuperAdminDisplayName'),
+        );
+      } catch (error) {
+        logger.error(t('logs.seedFailed'), {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    })();
+  }
+  return startupInitPromise;
+}
+
+export const appContainer: AppContainer = {
+  clock,
+  logger,
+  dataStore,
+  healthCheckService,
+  databaseSeeder,
+  authRepository,
+  adminRepository,
+  taxonomyRepository,
+  contentRepository,
+  viewEventRepository,
+  downloadEventRepository,
+  interactionRepository,
+  commentRepository,
+  contentRequestRepository,
+  layoutRepository,
+  announcementRepository,
+  dailyStatRepository,
+  userTopicAffinityRepository,
+  filmRepository,
+  bookRepository,
+  gameRepository,
+  gamePackageStorage,
+  studioExclusiveGameCatalog,
+  accountCleanupRepository,
+  backupRepository,
+  backupSnapshotProvider,
+  downloadTokenProtector,
+  s3StorageConfigStore,
+  localFileStorage,
+  s3FileStorage,
+  fileStorage,
+  agePreferenceStorage,
+  cultureStorage,
+  guestAffinityStorage,
+  visitorIdStorage,
+  announcementDismissStorage,
+  passwordHasher,
+  emailSender,
+  smsSender,
+  rateLimiter,
+  searchNormalizer,
+  authService,
+  otpService,
+  initialSuperAdminService,
+  contentIntegrityService,
+  permissionPolicyService,
+  staffManagementService,
+  userManagementService,
+  settingsManagementService,
+  fileUploadService,
+  taxonomyService,
+  contentManagementService,
+  contentCatalogService,
+  contentDetailService,
+  viewTrackerService,
+  downloadService,
+  interactionService,
+  commentService,
+  contentRequestService,
+  personalizationService,
+  filmPortalService,
+  bookPortalService,
+  gamePortalService,
+  studioExclusiveGameService,
+  homePageService,
+  layoutManagementService,
+  announcementService,
+  analyticsDashboardService,
+  dailyStatAggregationService,
+  advancedAnalyticsService,
+  dailyStatsAggregationJob,
+  backupService,
+  backupScheduler,
+  profileService,
+  searchSuggestionService,
+  sitemapService,
+  smartImportService,
+  storyService,
+  s3PresignedUrlService,
+  storageMigrationService,
+  recordStartupLogOnce,
+  ensureInitializedAtStartup,
+};
